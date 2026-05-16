@@ -1,0 +1,25 @@
+{
+	"name": "Trigger_Ops_Dim",
+	"properties": {
+		"annotations": [],
+		"runtimeState": "Stopped",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "Execute_Ops_Dim",
+					"type": "PipelineReference"
+				}
+			}
+		],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Day",
+				"interval": 1,
+				"startTime": "2026-05-16T17:17:00",
+				"endTime": "2026-05-17T17:17:00",
+				"timeZone": "India Standard Time"
+			}
+		}
+	}
+}

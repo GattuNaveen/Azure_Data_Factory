@@ -1,0 +1,15 @@
+{
+	"name": "azure-pipeline-adf",
+	"properties": {
+		"trustModeClaimForMi": {
+			"value": "Enabled",
+			"editable": true
+		}
+	},
+	"location": "eastus",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "77bc644d-b9c4-4bc9-b968-134956e5f7b0",
+		"tenantId": "700a2935-e9a4-4a44-8492-574619c20b9b"
+	}
+}

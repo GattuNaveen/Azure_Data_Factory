@@ -1,0 +1,7 @@
+{
+	"name": "azurepipeline-selfhostedruntime",
+	"properties": {
+		"type": "SelfHosted",
+		"description": "For getting data from onprem sql server to ADLS "
+	}
+}

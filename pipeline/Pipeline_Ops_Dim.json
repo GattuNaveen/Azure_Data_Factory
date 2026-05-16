@@ -1,0 +1,252 @@
+{
+	"name": "Pipeline_Ops_Dim",
+	"properties": {
+		"activities": [
+			{
+				"name": "Get_Tables_List",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "JsonSource",
+						"storeSettings": {
+							"type": "AzureBlobFSReadSettings",
+							"recursive": true,
+							"enablePartitionDiscovery": false
+						},
+						"formatSettings": {
+							"type": "JsonReadSettings"
+						}
+					},
+					"dataset": {
+						"referenceName": "Json",
+						"type": "DatasetReference"
+					}
+				}
+			},
+			{
+				"name": "Iterate_Each_Table",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Get_Tables_List",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Get_Tables_List').output.firstRow.tables",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "Get_Table_Details",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "SqlServerSource",
+									"sqlReaderQuery": {
+										"value": "@concat(\n'SELECT ',\n'COALESCE(TableName, ''', item().name, ''') AS TableName, ',\n'COALESCE(SchemaName, ''', item().schema, ''') AS SchemaName, ',\n'COALESCE(WatermarkColumn, ''ModifiedDate'') AS WatermarkColumn, ',\n'COALESCE(CAST(WatermarkValue AS VARCHAR(50)), ''1900-01-01'') AS WatermarkValue ',\n'FROM ops.CDCWaterMark ',\n'WHERE TableName = ''', item().name, ''' ',\n'AND schemaName = ''', item().schema, ''''\n)",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "DB",
+									"type": "DatasetReference"
+								}
+							}
+						},
+						{
+							"name": "Get_Record_Count",
+							"type": "Script",
+							"dependsOn": [
+								{
+									"activity": "Get_Table_Details",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "Onprem_DB",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "Query",
+										"text": {
+											"value": "@concat(\n'SELECT COUNT(1) AS TotalRecords, MAX(',\nactivity('Get_Table_Details').output.firstRow.WatermarkColumn,\n') AS Max_Cdc_Date FROM ',\nactivity('Get_Table_Details').output.firstRow.SchemaName,\n'.',\nactivity('Get_Table_Details').output.firstRow.TableName,\n' WHERE ',\nactivity('Get_Table_Details').output.firstRow.WatermarkColumn,\n' > ''',\nactivity('Get_Table_Details').output.firstRow.WatermarkValue,\n''''\n)",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						},
+						{
+							"name": "Check_Record_Count",
+							"type": "IfCondition",
+							"dependsOn": [
+								{
+									"activity": "Get_Record_Count",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"expression": {
+									"value": "@greater(activity('Get_Record_Count').output.resultSets[0].rowCount,0)",
+									"type": "Expression"
+								},
+								"ifTrueActivities": [
+									{
+										"name": "Load_Data",
+										"type": "Copy",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "SqlServerSource",
+												"sqlReaderQuery": {
+													"value": "@concat(\r\n'SELECT * FROM ',\r\nactivity('Get_Table_Details').output.firstRow.SchemaName,\r\n'.',\r\nactivity('Get_Table_Details').output.firstRow.TableName,\r\n' WHERE ',\r\nactivity('Get_Table_Details').output.firstRow.WatermarkColumn,\r\n' > ''',\r\nactivity('Get_Table_Details').output.firstRow.WatermarkValue,\r\n''''\r\n)",
+													"type": "Expression"
+												},
+												"queryTimeout": "02:00:00",
+												"partitionOption": "None"
+											},
+											"sink": {
+												"type": "ParquetSink",
+												"storeSettings": {
+													"type": "AzureBlobFSWriteSettings"
+												},
+												"formatSettings": {
+													"type": "ParquetWriteSettings"
+												}
+											},
+											"enableStaging": false,
+											"translator": {
+												"type": "TabularTranslator",
+												"typeConversion": true,
+												"typeConversionSettings": {
+													"allowDataTruncation": true,
+													"treatBooleanAsNumber": false
+												}
+											}
+										},
+										"inputs": [
+											{
+												"referenceName": "DB",
+												"type": "DatasetReference"
+											}
+										],
+										"outputs": [
+											{
+												"referenceName": "Parquet",
+												"type": "DatasetReference",
+												"parameters": {
+													"folderPath": {
+														"value": "@concat(\n'Dim/',\nitem().name\n)",
+														"type": "Expression"
+													},
+													"fileName": {
+														"value": "@concat(\nitem().name,\n'_',\nformatDateTime(utcnow(),'yyyyMMddHHmmss'),\n'.parquet'\n)",
+														"type": "Expression"
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "Update_Cdc",
+										"type": "Script",
+										"dependsOn": [
+											{
+												"activity": "Load_Data",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"linkedServiceName": {
+											"referenceName": "Onprem_DB",
+											"type": "LinkedServiceReference"
+										},
+										"typeProperties": {
+											"scripts": [
+												{
+													"type": "Query",
+													"text": {
+														"value": "@concat(\n'EXEC ops.spUpsertCDCWaterMark ',\n'''', activity('Get_Table_Details').output.firstRow.SchemaName, ''',',\n'''', activity('Get_Table_Details').output.firstRow.TableName, ''',',\n'''', activity('Get_Table_Details').output.firstRow.WatermarkColumn, ''',',\n'''', activity('Get_Record_Count').output.resultSets[0].rows[0].Max_Cdc_Date, ''''\n)",
+														"type": "Expression"
+													}
+												}
+											],
+											"scriptBlockExecutionTimeout": "02:00:00"
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			}
+		],
+		"variables": {
+			"debug": {
+				"type": "String"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2026-05-16T17:15:56Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}
