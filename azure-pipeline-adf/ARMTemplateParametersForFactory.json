@@ -1,0 +1,30 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"value": "azure-pipeline-adf"
+		},
+		"Delta_lake_accountKey": {
+			"value": ""
+		},
+		"Onprem_DB_password": {
+			"value": ""
+		},
+		"Delta_lake_properties_typeProperties_url": {
+			"value": "https://azurepipelinedeltalake.dfs.core.windows.net/"
+		},
+		"Onprem_DB_properties_typeProperties_server": {
+			"value": "localhost"
+		},
+		"Onprem_DB_properties_typeProperties_database": {
+			"value": "vCX360DataStore"
+		},
+		"Onprem_DB_properties_typeProperties_userName": {
+			"value": "sa"
+		},
+		"Rest_properties_typeProperties_url": {
+			"value": "https://pokeapi.co/api/v2/pokemon/"
+		}
+	}
+}
