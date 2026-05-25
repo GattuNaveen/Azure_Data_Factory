@@ -59,7 +59,8 @@
 				"policy": {
 					"elapsedTimeMetric": {}
 				},
-				"annotations": []
+				"annotations": [],
+				"lastPublishTime": "2026-05-16T18:29:04Z"
 			},
 			"dependsOn": []
 		},
